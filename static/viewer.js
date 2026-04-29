@@ -49,7 +49,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0; // Standard exposure
+renderer.toneMappingExposure = 1.3; // Increased for better brightness
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 
@@ -128,14 +128,14 @@ pmremScene.add(sun);
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 pmremGenerator.compileEquirectangularShader();
 scene.environment = pmremGenerator.fromScene(pmremScene).texture;
-scene.environmentIntensity = 0.8; 
+scene.environmentIntensity = 1.2; 
 
 // Add a soft hemisphere light to fill in pitch-black shadows
-const hemiLight = new THREE.HemisphereLight(0xffffff, 0x888888, 0.8);
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x888888, 1.0);
 scene.add(hemiLight);
 
 // Add a directional light
-const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.0);
 keyLight.position.set(5, 8, 4);
 scene.add(keyLight);
 
