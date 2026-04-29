@@ -21,3 +21,5 @@ Or you can compile it yourself, it's open source:)
 ## 3D Model Credit
 
 This work uses "trackmania 2020 carsport" by amogusstrikesback2 (https://sketchfab.com/amogusstrikesback2) licensed under CC-BY-4.0.
+
+![Downloads](https://img.shields.io/github/downloads/LovelyPotato-ai/TM-LiveSync/total?style=for-the-badge)
