@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>TM LiveSync — Skin Previewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/style.css">
+
+    <!-- Three.js import map (ES modules, no build step) -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+
+<body>
+    <!-- 3D Canvas -->
+    <canvas id="viewer-canvas"></canvas>
+
+    <!-- HUD Overlay -->
+    <div id="hud">
+        <!-- Connection Status -->
+        <div id="status-bar">
+            <div id="status-dot"></div>
+            <span id="status-text">Connecting…</span>
+        </div>
+
+        <!-- Logo / Title -->
+        <div id="logo">
+            <span class="logo-tm">TM</span>
+            <span class="logo-live">LiveSync</span>
+            <div id="update-indicator" class="hidden">
+                <div class="small-spinner"></div>
+                <span class="update-text">Updating...</span>
+            </div>
+            <button id="help-btn" class="help-btn">How to use</button>
+        </div>
+
+        <!-- Info Panel -->
+        <div id="info-panel">
+            <div class="info-row">
+                <span class="info-label">Last update</span>
+                <span class="info-value" id="last-update">—</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">File</span>
+                <span class="info-value" id="last-file">—</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Updates</span>
+                <span class="info-value" id="update-count">0</span>
+            </div>
+        </div>
+
+        <!-- Controls Help -->
+        <div id="controls-help">
+            <div class="control-hint">
+                <kbd>LMB</kbd> Rotate
+            </div>
+            <div class="control-hint">
+                <kbd>RMB</kbd> Pan
+            </div>
+            <div class="control-hint">
+                <kbd>Scroll</kbd> Zoom
+            </div>
+            <div class="control-hint">
+                <kbd>R</kbd> Reset view
+            </div>
+        </div>
+    </div>
+
+    <!-- Flash overlay for texture reload feedback -->
+    <div id="reload-flash"></div>
+
+    <!-- Loading screen -->
+    <div id="loading-screen">
+        <div class="loader-content">
+            <div class="spinner"></div>
+            <p>Loading model…</p>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="hidden">
+        <div class="modal-content">
+            <h2>How to use TM LiveSync</h2>
+            <p>1. Put your Trackmania skin files to the newly created <strong>skin/</strong> folder located next to the
+                executable.</p>
+            <p>2. Every time you save or export your texture over the old file, the 3D viewer will instantly update.</p>
+            <p>3. Use Left Mouse Button to rotate, Right Mouse Button to pan, and Scroll to zoom.</p>
+            <button id="close-help-btn" class="help-btn mt-10">Close</button>
+        </div>
+    </div>
+
+    <script type="module" src="/viewer.js"></script>
+</body>
+
+</html>

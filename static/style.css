@@ -1,0 +1,77 @@
+/* ===================================================================
+   TM LiveSync — Skin Previewer Stylesheet
+   Premium dark studio aesthetic with glassmorphism HUD
+   =================================================================== */
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg-dark:#0a0a0f;--bg-panel:rgba(15,15,25,.75);
+  --border-subtle:rgba(255,255,255,.06);
+  --text-primary:#e8e8f0;--text-secondary:rgba(200,200,220,.6);--text-dim:rgba(200,200,220,.35);
+  --accent-cyan:#00c8ff;--accent-green:#34d399;--accent-red:#f43f5e;
+  --font-sans:'Inter',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;
+  --radius-md:10px;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg-dark);font-family:var(--font-sans);color:var(--text-primary);-webkit-font-smoothing:antialiased}
+
+/* Canvas */
+#viewer-canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+/* HUD */
+#hud{position:fixed;inset:0;pointer-events:none;z-index:10;padding:20px;display:flex;flex-direction:column;justify-content:space-between}
+#hud>*{pointer-events:auto}
+
+/* Status Bar */
+#status-bar{align-self:flex-end;display:flex;align-items:center;gap:8px;background:var(--bg-panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--border-subtle);border-radius:20px;padding:6px 14px 6px 10px;font-size:12px;font-weight:500;letter-spacing:.03em;transition:border-color .3s}
+#status-bar.connected{border-color:rgba(52,211,153,.2)}
+#status-bar.disconnected{border-color:rgba(244,63,94,.2)}
+#status-dot{width:8px;height:8px;border-radius:50%;background:var(--text-dim);transition:background .3s,box-shadow .3s}
+#status-bar.connected #status-dot{background:var(--accent-green);box-shadow:0 0 8px rgba(52,211,153,.4)}
+#status-bar.disconnected #status-dot{background:var(--accent-red);box-shadow:0 0 8px rgba(244,63,94,.4);animation:pulse-dot 1.5s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.4}}
+#status-text{color:var(--text-secondary)}
+
+/* Logo */
+#logo{position:absolute;top:20px;left:20px;display:flex;align-items:center;gap:4px;user-select:none}
+.logo-tm{font-size:22px;font-weight:700;letter-spacing:-.02em;background:linear-gradient(135deg,var(--accent-cyan),#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.logo-live{font-size:22px;font-weight:300;color:var(--text-secondary);letter-spacing:-.01em}
+.small-spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.08);border-top-color:var(--accent-cyan);border-radius:50%;animation:spin .8s linear infinite}
+#update-indicator{display:flex;align-items:center;gap:8px;margin-left:12px;background:rgba(0, 200, 255, 0.1);padding:4px 12px;border-radius:20px;border:1px solid rgba(0,200,255,0.2)}
+.update-text{font-size:12px;font-weight:600;color:var(--accent-cyan);letter-spacing:0.02em}
+
+.help-btn{margin-left:16px;background:rgba(255,255,255,0.05);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:6px 14px;border-radius:20px;font-family:var(--font-sans);font-size:12px;font-weight:500;cursor:pointer;transition:all 0.2s}
+.help-btn:hover{background:rgba(255,255,255,0.1);color:var(--text-primary)}
+.mt-10{margin-top:24px}
+
+/* Help Modal */
+#help-modal{position:fixed;inset:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:200;display:flex;align-items:center;justify-content:center;transition:opacity 0.3s}
+.modal-content{background:var(--bg-panel);border:1px solid var(--border-subtle);padding:32px;border-radius:var(--radius-md);max-width:480px;box-shadow:0 20px 40px rgba(0,0,0,0.5)}
+.modal-content h2{font-size:20px;margin-bottom:20px;color:var(--accent-cyan);font-weight:600;letter-spacing:-0.01em}
+.modal-content p{font-size:14px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6}
+.modal-content strong{color:var(--text-primary);font-weight:600}
+
+.hidden{display:none !important}
+
+/* Info Panel */
+#info-panel{position:absolute;bottom:20px;left:20px;background:var(--bg-panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px 18px;display:flex;flex-direction:column;gap:8px;min-width:200px}
+.info-row{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.info-label{font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--text-dim)}
+.info-value{font-family:var(--font-mono);font-size:12px;font-weight:500;color:var(--text-primary)}
+
+/* Controls Help */
+#controls-help{position:absolute;bottom:20px;right:20px;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.control-hint{font-size:11px;color:var(--text-dim);display:flex;align-items:center;gap:6px}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 5px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:4px;font-family:var(--font-mono);font-size:10px;font-weight:500;color:var(--text-secondary);line-height:1}
+
+/* Reload Flash */
+#reload-flash{position:fixed;inset:0;pointer-events:none;z-index:5;background:var(--accent-cyan);opacity:0;transition:opacity .06s ease-out}
+#reload-flash.active{opacity:.08}
+
+/* Loading Screen */
+#loading-screen{position:fixed;inset:0;z-index:100;background:var(--bg-dark);display:flex;align-items:center;justify-content:center;transition:opacity .5s,visibility .5s}
+#loading-screen.hidden{opacity:0;visibility:hidden}
+.loader-content{display:flex;flex-direction:column;align-items:center;gap:20px}
+.loader-content p{font-size:14px;font-weight:400;color:var(--text-secondary);letter-spacing:.05em}
+.spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,.08);border-top-color:var(--accent-cyan);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+@media(max-width:600px){#hud{padding:12px}#controls-help{display:none}#info-panel{min-width:unset}.logo-tm,.logo-live{font-size:18px}}
