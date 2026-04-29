@@ -48,7 +48,7 @@ DEFAULT_SKINS_DIR.mkdir(parents=True, exist_ok=True)
 # Pattern: {Group}_{Channel}.{dds|png}
 import re
 WATCHED_RE = re.compile(
-    r'^(skin|details|wheels|glass)_(b|r|n|i|ao|dirtmask)\.(dds|png)$',
+    r'^(skin|details|wheels|glass)_(b|r|n|i|ao|dirtmask|d)\.(dds|png)$',
     re.IGNORECASE,
 )
 
@@ -248,20 +248,22 @@ async def serve_skin(filepath: str):
             # DDS uses bottom-left origin; flip to match GLTF's top-left UVs
             img = img.transpose(Image.FLIP_TOP_BOTTOM)
             
-            # Trackmania _R maps use Red=Roughness, Green=Metallic.
-            # Three.js (glTF) expects Green=Roughness, Blue=Metallic.
-            if file_path.name.lower().endswith("_r.dds"):
-                if img.mode in ("RGB", "RGBA"):
-                    bands = img.split()
-                    if len(bands) >= 3:
-                        r, g, b = bands[0], bands[1], bands[2]
-                        new_r = b  # Move old blue (usually empty/dirt) to red (AO in glTF)
-                        new_g = r  # Move old red (Roughness) to green
-                        new_b = g  # Move old green (Metallic) to blue
-                        if len(bands) == 4:
-                            img = Image.merge("RGBA", (new_r, new_g, new_b, bands[3]))
-                        else:
-                            img = Image.merge("RGB", (new_r, new_g, new_b))
+            fname_lower = file_path.name.lower()
+
+            # Trackmania _R maps use Red=Roughness, Green=Metalness.
+            # Three.js (glTF) expects Green=Roughness, Blue=Metalness.
+            if fname_lower.endswith("_r.dds"):
+                # Force to RGB first to ensure we have exactly 3 bands to work with
+                img = img.convert("RGB")
+                r, g, b = img.split()
+                # Mapping: TM Red(Rough) -> glTF Green, TM Green(Metal) -> glTF Blue
+                # We leave Red empty (black) as glTF often uses it for AO, but we'll keep it simple.
+                black = Image.new('L', img.size, 0)
+                img = Image.merge("RGB", (black, r, g))
+            
+            # For base color/diffuse (_b or _d), discard alpha to prevent "washed out" transparency
+            elif not fname_lower.startswith("glass"):
+                img = img.convert("RGB")
 
             buf = io.BytesIO()
             img.save(buf, format="PNG")

@@ -262,7 +262,7 @@ function parseTextureFile(filename) {
 
     // Determine material slot from channel suffix
     let slot = null;
-    if (/_b\./.test(f)) slot = 'map';
+    if (/_b\./.test(f) || /_d\./.test(f)) slot = 'map';
     else if (/_r\./.test(f)) slot = 'roughnessMap';
     else if (/_n\./.test(f)) slot = 'normalMap';
     else if (/_i\./.test(f)) slot = 'emissiveMap';
@@ -278,6 +278,12 @@ function parseTextureFile(filename) {
 function applyTextureToMeshes(texture, targetMeshes, slot) {
     targetMeshes.forEach((mesh) => {
         if (!mesh.material) return;
+
+        // Force transparency off for non-glass textures to prevent "washed out" look
+        if (!mesh.material.name.toLowerCase().includes('glass')) {
+            mesh.material.transparent = false;
+            mesh.material.opacity = 1.0;
+        }
 
         // Dispose the old texture to free GPU memory and prevent stale caching
         const oldTexture = mesh.material[slot];
