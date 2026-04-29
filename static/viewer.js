@@ -49,7 +49,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+renderer.toneMappingExposure = 1.0;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 
@@ -112,12 +112,12 @@ controls.update();
 // to get beautiful reflections without any "square" light artifacts.
 
 const pmremScene = new THREE.Scene();
-pmremScene.background = new THREE.Color(0x555555); // Brighter sky for ambient reflections
+pmremScene.background = new THREE.Color(0x222222); // Darker sky to prevent washed out reflections
 
 // Horizon / Ground (darker to anchor the reflections)
 const envGround = new THREE.Mesh(
     new THREE.PlaneGeometry(400, 400),
-    new THREE.MeshBasicMaterial({ color: 0x333333 }) // Brighter ground reflections
+    new THREE.MeshBasicMaterial({ color: 0x111111 }) // Darker ground
 );
 envGround.rotation.x = -Math.PI / 2;
 pmremScene.add(envGround);
@@ -134,11 +134,10 @@ pmremScene.add(sun);
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 pmremGenerator.compileEquirectangularShader();
 scene.environment = pmremGenerator.fromScene(pmremScene).texture;
-scene.environmentIntensity = 1.0; // Reduced to balance the brighter sky
+scene.environmentIntensity = 0.8; // Reduced
 
 // Add a soft hemisphere light to fill in pitch-black shadows
-// Reverted intensity to prevent diffuse white parts from glowing
-const hemiLight = new THREE.HemisphereLight(0xffffff, 0x888888, 1.0);
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
 scene.add(hemiLight);
 
 // Add a subtle directional light just for casting shadows and providing form
@@ -195,6 +194,10 @@ gltfLoader.load(
                 if (child.material.emissive) {
                     child.material.emissive.setHex(0x000000);
                 }
+                
+                // Fallback default so it doesn't look like chrome if Skin_R is missing
+                child.material.metalness = 0.0;
+                child.material.roughness = 0.6;
 
                 const matName = child.material.name?.toLowerCase() || '';
                 if (matName.includes('skin')) meshGroups.skin.push(child);
