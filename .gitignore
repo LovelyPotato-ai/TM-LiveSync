@@ -28,6 +28,8 @@ skin/
 skins/
 TMLiveSync.spec
 .vscode/
+build_exe.bat
+Start TM LiveSync.bat
 
 # OS Files
 .DS_Store
