@@ -203,7 +203,9 @@ gltfLoader.load(
 
                 if (matName.includes('skin')) meshGroups.skin.push(child);
                 else if (matName.includes('details')) meshGroups.details.push(child);
-                else if (matName.includes('wheel') || matName.includes('rim') || matName.includes('tire') || matName.includes('hub')) meshGroups.wheels.push(child);
+                else if (matName.includes('wheel') || matName.includes('rim') || matName.includes('tire') || matName.includes('hub')) {
+                    meshGroups.wheels.push(child);
+                }
                 else if (matName.includes('glass')) meshGroups.glass.push(child);
             }
         });
@@ -273,10 +275,26 @@ function applyTextureToMeshes(texture, targetMeshes, slot) {
         }
 
         if (slot === 'emissiveMap') {
-            mesh.material.emissive.setHex(0xffffff);
-            // Slightly lower intensity for smaller parts to prevent overwhelming glow
             const isSkin = mesh.material.name.toLowerCase().includes('skin');
-            mesh.material.emissiveIntensity = isSkin ? 2.0 : 1.2;
+            const isTire = mesh.material.name.toLowerCase().includes('tire');
+            
+            if (isTire) {
+                // Tires should NEVER glow
+                mesh.material.emissive.setHex(0x000000);
+                mesh.material.emissiveIntensity = 0;
+                mesh.material.emissiveMap = null;
+            } else {
+                mesh.material.emissive.setHex(0xffffff);
+                // Significantly lower intensity for wheels to avoid accidental glow
+                // 2.0 for skin (main lights), 0.5 for wheels (neon rims), 1.0 for others
+                if (isSkin) {
+                    mesh.material.emissiveIntensity = 2.0;
+                } else if (mesh.material.name.toLowerCase().includes('wheel') || mesh.material.name.toLowerCase().includes('rim')) {
+                    mesh.material.emissiveIntensity = 0.5;
+                } else {
+                    mesh.material.emissiveIntensity = 1.0;
+                }
+            }
         }
 
         if (slot === 'aoMap') {
