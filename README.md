@@ -4,7 +4,8 @@ Real-time Trackmania 2020 skin previewer. Edit your skin textures in Photoshop/G
 
 # How to Setup:
 
-Head to the releases and download the latest version.
+Head to the releases and download the latest version here:
+https://github.com/LovelyPotato-ai/TM-LiveSync/releases/tag/Main
 
 Or you can compile it yourself, it's open source:)
 
