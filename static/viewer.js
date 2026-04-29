@@ -85,9 +85,15 @@ composer.addPass(renderPass);
 
 const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
+<<<<<<< Updated upstream
     0.15,  // Subdued bloom strength
     0.3,   // Radius
     0.9    // Threshold (only very bright spots glow)
+=======
+    0.3,   // strength
+    0.4,   // radius
+    0.85   // threshold (emissive lights should glow)
+>>>>>>> Stashed changes
 );
 composer.addPass(bloomPass);
 
@@ -128,10 +134,17 @@ pmremScene.add(sun);
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 pmremGenerator.compileEquirectangularShader();
 scene.environment = pmremGenerator.fromScene(pmremScene).texture;
+<<<<<<< Updated upstream
 scene.environmentIntensity = 0.6; // Lowered to avoid washing out textures
 
 // Add a soft hemisphere light
 const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
+=======
+scene.environmentIntensity = 0.8; 
+
+// Add a soft hemisphere light to fill in pitch-black shadows
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x888888, 0.8);
+>>>>>>> Stashed changes
 scene.add(hemiLight);
 
 // Add a directional light
@@ -203,7 +216,11 @@ gltfLoader.load(
 
                 if (matName.includes('skin')) meshGroups.skin.push(child);
                 else if (matName.includes('details')) meshGroups.details.push(child);
+<<<<<<< Updated upstream
                 else if (matName.includes('wheels')) meshGroups.wheels.push(child);
+=======
+                else if (matName.includes('wheel') || matName.includes('rim') || matName.includes('tire') || matName.includes('hub')) meshGroups.wheels.push(child);
+>>>>>>> Stashed changes
                 else if (matName.includes('glass')) meshGroups.glass.push(child);
             }
         });
@@ -266,10 +283,14 @@ function applyTextureToMeshes(texture, targetMeshes, slot) {
 
         mesh.material[slot] = texture;
 
-        if (slot === 'map') {
-            mesh.material.color.set(0xffffff); 
+        // Force transparency off for non-glass to ensure the body is solid
+        // This prevents "ghosting" if the texture contains an alpha channel
+        if (!mesh.material.name.toLowerCase().includes('glass')) {
+            mesh.material.transparent = false;
+            mesh.material.opacity = 1.0;
         }
 
+        // For roughness maps, also set as metalness source
         if (slot === 'roughnessMap') {
             mesh.material.metalnessMap = texture;
             mesh.material.metalness = 1.0;
@@ -278,7 +299,14 @@ function applyTextureToMeshes(texture, targetMeshes, slot) {
 
         if (slot === 'emissiveMap') {
             mesh.material.emissive.setHex(0xffffff);
-            mesh.material.emissiveIntensity = 0.8; // Modest glow
+            // Slightly lower intensity for smaller parts to prevent overwhelming glow
+            const isSkin = mesh.material.name.toLowerCase().includes('skin');
+            mesh.material.emissiveIntensity = isSkin ? 2.0 : 1.2;
+        }
+
+        if (slot === 'aoMap') {
+            mesh.material.aoMapIntensity = 1.0;
+        }
         }
 
         if (slot === 'normalMap') {

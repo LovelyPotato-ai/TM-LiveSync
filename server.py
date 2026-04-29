@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-from PIL import Image
+from PIL import Image, ImageChops
 import io
 
 # ---------------------------------------------------------------------------
@@ -249,24 +249,44 @@ async def serve_skin(filepath: str):
             img = img.transpose(Image.FLIP_TOP_BOTTOM)
             
             fname_lower = file_path.name.lower()
-
-            # Trackmania _R maps use Red=Roughness, Green=Metalness.
-            # Three.js (glTF) expects Green=Roughness, Blue=Metalness.
-            if fname_lower.endswith("_r.dds"):
-                # Force to RGB first to ensure we have exactly 3 bands to work with
-                img = img.convert("RGB")
-                r, g, b = img.split()
-                # Mapping: TM Red(Rough) -> glTF Green, TM Green(Metal) -> glTF Blue
-                black = Image.new('L', img.size, 0)
-                img = Image.merge("RGB", (black, r, g))
             
-            # For everything else (except glass), discard alpha to prevent transparency/glow bugs
-            elif not fname_lower.startswith("glass"):
-                img = img.convert("RGB")
+            # --- CHANNEL MAPPING LOGIC ---
+            
+            # Illumination (_I): RGB is color, Alpha is intensity/trigger.
+            # We bake the Alpha into the RGB to get a standard emissive map.
+            if fname_lower.endswith("_i.dds"):
+                if img.mode == "RGBA":
+                    r, g, b, a = img.split()
+                    # Multiply RGB by Alpha to mask out non-glowing parts
+                    img = Image.merge("RGB", (
+                        ImageChops.multiply(r, a),
+                        ImageChops.multiply(g, a),
+                        ImageChops.multiply(b, a)
+                    ))
+                else:
+                    img = img.convert("RGB")
 
-            # Final check: for emissive maps, we definitely want no alpha
-            if "_i.dds" in fname_lower:
-                img = img.convert("RGB")
+            # Material map (_R): TM Red=Roughness, Green=Metallic, Blue=Dirt/Mask
+            # glTF expects: Red=AO, Green=Roughness, Blue=Metallic
+            elif fname_lower.endswith("_r.dds"):
+                if img.mode in ("RGB", "RGBA"):
+                    bands = img.split()
+                    if len(bands) >= 3:
+                        r, g, b = bands[0], bands[1], bands[2]
+                        # glTF: Red(AO) <- TM Blue, Green(Rough) <- TM Red, Blue(Metal) <- TM Green
+                        img = Image.merge("RGB", (b, r, g))
+                    else:
+                        img = img.convert("RGB")
+                else:
+                    img = img.convert("RGB")
+
+            # Final fallback to RGB if not already handled and not glass
+            elif not fname_lower.startswith("glass"):
+                if img.mode == "RGBA":
+                    # We keep RGBA but we will tell Three.js to ignore transparency
+                    pass
+                else:
+                    img = img.convert("RGB")
 
             buf = io.BytesIO()
             img.save(buf, format="PNG")
