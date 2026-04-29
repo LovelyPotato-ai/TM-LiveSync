@@ -257,12 +257,15 @@ async def serve_skin(filepath: str):
                 img = img.convert("RGB")
                 r, g, b = img.split()
                 # Mapping: TM Red(Rough) -> glTF Green, TM Green(Metal) -> glTF Blue
-                # We leave Red empty (black) as glTF often uses it for AO, but we'll keep it simple.
                 black = Image.new('L', img.size, 0)
                 img = Image.merge("RGB", (black, r, g))
             
-            # For base color/diffuse (_b or _d), discard alpha to prevent "washed out" transparency
+            # For everything else (except glass), discard alpha to prevent transparency/glow bugs
             elif not fname_lower.startswith("glass"):
+                img = img.convert("RGB")
+
+            # Final check: for emissive maps, we definitely want no alpha
+            if "_i.dds" in fname_lower:
                 img = img.convert("RGB")
 
             buf = io.BytesIO()

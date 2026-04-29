@@ -49,7 +49,7 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
+renderer.toneMappingExposure = 1.0; // Standard exposure
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 
@@ -70,13 +70,12 @@ const camera = new THREE.PerspectiveCamera(
 camera.position.set(3, 1.8, 4);
 
 // ── Post-processing (Bloom) ────────────────────────────────────────
-// Use a multisampled render target to fix jagged edges/sparks (MSAA)
 const renderTarget = new THREE.WebGLRenderTarget(
     window.innerWidth,
     window.innerHeight,
     {
-        samples: 4, // 4x MSAA
-        type: THREE.HalfFloatType // HDR precision
+        samples: 4, 
+        type: THREE.HalfFloatType 
     }
 );
 
@@ -86,13 +85,12 @@ composer.addPass(renderPass);
 
 const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.25,  // strength — intensity of the glow (lowered from 0.6)
-    0.4,   // radius — how far the glow spreads
-    0.85   // threshold — only pixels brighter than this bloom
+    0.15,  // Subdued bloom strength
+    0.3,   // Radius
+    0.9    // Threshold (only very bright spots glow)
 );
 composer.addPass(bloomPass);
 
-// OutputPass applies tone mapping + color space after bloom
 const outputPass = new OutputPass();
 composer.addPass(outputPass);
 
@@ -106,47 +104,42 @@ controls.target.set(0, 0.4, 0);
 controls.maxPolarAngle = Math.PI * 0.85;
 controls.update();
 
-// ── Lighting & Environment (High-Contrast Outdoor) ────────────────
-// Metallic car paint requires high-contrast reflections to avoid looking flat.
-// We build a custom scene to generate a perfect outdoor HDRI (round sun, horizon, sky)
-// to get beautiful reflections without any "square" light artifacts.
-
+// ── Lighting & Environment ────────────────────────────────────────
 const pmremScene = new THREE.Scene();
-pmremScene.background = new THREE.Color(0x555555); // Brighter sky for ambient reflections
+pmremScene.background = new THREE.Color(0x222222); // Darker environment background
 
-// Horizon / Ground (darker to anchor the reflections)
+// Horizon / Ground
 const envGround = new THREE.Mesh(
     new THREE.PlaneGeometry(400, 400),
-    new THREE.MeshBasicMaterial({ color: 0x333333 }) // Brighter ground reflections
+    new THREE.MeshBasicMaterial({ color: 0x111111 }) 
 );
 envGround.rotation.x = -Math.PI / 2;
 pmremScene.add(envGround);
 
-// A large, round "Sun" for a smooth, circular specular reflection (not a square)
+// A moderate "Sun"
 const sun = new THREE.Mesh(
     new THREE.SphereGeometry(15, 32, 32),
-    new THREE.MeshBasicMaterial({ color: 0xffffff }) // Pure white sun
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
 );
 sun.position.set(40, 50, 40);
 pmremScene.add(sun);
 
-// Generate the high-fidelity environment map
+// Generate the environment map
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 pmremGenerator.compileEquirectangularShader();
 scene.environment = pmremGenerator.fromScene(pmremScene).texture;
-scene.environmentIntensity = 1.0; // Reduced to balance the brighter sky
+scene.environmentIntensity = 0.6; // Lowered to avoid washing out textures
 
-// Add a soft hemisphere light to fill in pitch-black shadows
-// Reverted intensity to prevent diffuse white parts from glowing
-const hemiLight = new THREE.HemisphereLight(0xffffff, 0x888888, 1.0);
+// Add a soft hemisphere light
+const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
 scene.add(hemiLight);
 
-// Add a subtle directional light just for casting shadows and providing form
-const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+// Add a directional light
+const keyLight = new THREE.DirectionalLight(0xffffff, 0.7);
 keyLight.position.set(5, 8, 4);
 scene.add(keyLight);
 
-// Ground plane (subtle reflective surface)
+// Ground plane
 const groundGeo = new THREE.PlaneGeometry(50, 50);
 const groundMat = new THREE.MeshStandardMaterial({
     color: 0x0a0a0f,
@@ -159,7 +152,6 @@ ground.position.y = -0.01;
 ground.receiveShadow = true;
 scene.add(ground);
 
-// ── Grid helper (subtle) ──────────────────────────────────────────
 const grid = new THREE.GridHelper(20, 40, 0x1a1a2e, 0x111118);
 grid.position.y = 0;
 scene.add(grid);
@@ -173,7 +165,6 @@ gltfLoader.load(
     (gltf) => {
         const model = gltf.scene;
 
-        // Auto-center and scale the model
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
@@ -182,39 +173,46 @@ gltfLoader.load(
         const scale = 2.5 / maxDim;
         model.scale.setScalar(scale);
 
-        // Re-center after scaling
         box.setFromObject(model);
         box.getCenter(center);
         model.position.sub(center);
         model.position.y += (size.y * scale) / 2;
 
-        // Find and group meshes by material name
         model.traverse((child) => {
             if (child.isMesh && child.material) {
-                // Prevent the base model from glowing white without an emissive map
-                if (child.material.emissive) {
-                    child.material.emissive.setHex(0x000000);
+                // FORCE ALL MATERIALS TO BE SOLID initially (except glass)
+                const matName = child.material.name?.toLowerCase() || '';
+                
+                if (!matName.includes('glass')) {
+                    child.material.transparent = false;
+                    child.material.opacity = 1.0;
+                    child.material.depthWrite = true;
+                } else {
+                    child.material.transparent = true;
+                    child.material.opacity = 0.5;
                 }
 
-                const matName = child.material.name?.toLowerCase() || '';
+                // Reset emissive to prevent default model glow
+                child.material.emissive.setHex(0x000000);
+                child.material.emissiveIntensity = 0;
+                child.material.emissiveMap = null;
+
+                // Sensible PBR defaults
+                child.material.roughness = 0.5; 
+                child.material.metalness = 0.0;
+
                 if (matName.includes('skin')) meshGroups.skin.push(child);
-                if (matName.includes('details')) meshGroups.details.push(child);
-                if (matName.includes('wheels')) meshGroups.wheels.push(child);
-                if (matName.includes('glass')) meshGroups.glass.push(child);
+                else if (matName.includes('details')) meshGroups.details.push(child);
+                else if (matName.includes('wheels')) meshGroups.wheels.push(child);
+                else if (matName.includes('glass')) meshGroups.glass.push(child);
             }
         });
 
         scene.add(model);
-
-        // Update orbit target to model center
         controls.target.set(0, (size.y * scale) / 2, 0);
         controls.update();
 
-        console.log(`[TM LiveSync] Model loaded — skin: ${meshGroups.skin.length}, details: ${meshGroups.details.length}, wheels: ${meshGroups.wheels.length}, glass: ${meshGroups.glass.length}`);
-
-        // Auto-load all existing textures from the skins folder
         loadInitialTextures().then(() => {
-            // Hide loading screen after all textures are loaded
             loadingScreen.classList.add('hidden');
         });
     },
@@ -223,36 +221,14 @@ gltfLoader.load(
             const pct = Math.round((progress.loaded / progress.total) * 100);
             loadingScreen.querySelector('p').textContent = `Loading model… ${pct}%`;
         }
-    },
-    (error) => {
-        console.error('[TM LiveSync] Failed to load model:', error);
-        loadingScreen.querySelector('p').textContent = 'Failed to load model';
     }
 );
 
 // ── Texture reload system ─────────────────────────────────────────
-// The server converts DDS → PNG on the fly, so we only need TextureLoader.
 const textureLoader = new THREE.TextureLoader();
 
-/**
- * Determine which material property (slot) and which mesh group
- * a texture file maps to, based on its filename.
- *
- * Trackmania naming convention:
- *   {Group}_{Channel}.dds
- *   e.g. Skin_B.dds, Details_R.dds, Wheels_N.dds
- *
- * Channels:
- *   _B  → baseColorMap  ("map" in Three.js)
- *   _R  → metallicRoughnessMap  ("metalnessMap" + "roughnessMap")
- *   _N  → normalMap
- *   _I  → emissiveMap
- *   _AO → aoMap (ambient occlusion)
- */
 function parseTextureFile(filename) {
     const f = filename.toLowerCase();
-
-    // Determine mesh group
     let group = null;
     if (f.startsWith('skin')) group = 'skin';
     else if (f.startsWith('details')) group = 'details';
@@ -260,7 +236,6 @@ function parseTextureFile(filename) {
     else if (f.startsWith('glass')) group = 'glass';
     if (!group) return null;
 
-    // Determine material slot from channel suffix
     let slot = null;
     if (/_b\./.test(f) || /_d\./.test(f)) slot = 'map';
     else if (/_r\./.test(f)) slot = 'roughnessMap';
@@ -272,20 +247,18 @@ function parseTextureFile(filename) {
     return { group, slot };
 }
 
-/**
- * Apply a loaded texture to the correct mesh group and material slot.
- */
 function applyTextureToMeshes(texture, targetMeshes, slot) {
     targetMeshes.forEach((mesh) => {
         if (!mesh.material) return;
 
-        // Force transparency off for non-glass textures to prevent "washed out" look
+        // FORCE SOLID RENDER
         if (!mesh.material.name.toLowerCase().includes('glass')) {
             mesh.material.transparent = false;
             mesh.material.opacity = 1.0;
+            mesh.material.depthWrite = true;
+            mesh.material.alphaTest = 0.05;
         }
 
-        // Dispose the old texture to free GPU memory and prevent stale caching
         const oldTexture = mesh.material[slot];
         if (oldTexture && oldTexture !== texture) {
             oldTexture.dispose();
@@ -293,22 +266,22 @@ function applyTextureToMeshes(texture, targetMeshes, slot) {
 
         mesh.material[slot] = texture;
 
-        // For roughness maps, also set as metalness source
+        if (slot === 'map') {
+            mesh.material.color.set(0xffffff); 
+        }
+
         if (slot === 'roughnessMap') {
-            const oldMetal = mesh.material.metalnessMap;
-            if (oldMetal && oldMetal !== texture && oldMetal !== oldTexture) {
-                oldMetal.dispose();
-            }
             mesh.material.metalnessMap = texture;
+            mesh.material.metalness = 1.0;
+            mesh.material.roughness = 1.0;
         }
 
         if (slot === 'emissiveMap') {
-            mesh.material.emissive = new THREE.Color(1, 1, 1);
-            mesh.material.emissiveIntensity = 1.2;
+            mesh.material.emissive.setHex(0xffffff);
+            mesh.material.emissiveIntensity = 0.8; // Modest glow
         }
 
         if (slot === 'normalMap') {
-            // Trackmania normal maps are DirectX format (Y-), Three.js expects OpenGL (Y+)
             mesh.material.normalScale = new THREE.Vector2(1, -1);
         }
 
@@ -316,10 +289,6 @@ function applyTextureToMeshes(texture, targetMeshes, slot) {
     });
 }
 
-/**
- * Load a single texture file and apply it to the matching mesh group.
- * Returns a Promise that resolves when the texture is loaded.
- */
 function loadTextureFile(filename, cacheBust = '') {
     loadingCount++;
     updateIndicator.classList.remove('hidden');
@@ -327,7 +296,6 @@ function loadTextureFile(filename, cacheBust = '') {
     return new Promise((resolve) => {
         const parsed = parseTextureFile(filename);
         if (!parsed) {
-            console.warn(`[TM LiveSync] Unknown texture file: ${filename}`);
             resolve();
             return;
         }
@@ -335,37 +303,26 @@ function loadTextureFile(filename, cacheBust = '') {
         const { group, slot } = parsed;
         const targetMeshes = meshGroups[group] || [];
         if (targetMeshes.length === 0) {
-            console.warn(`[TM LiveSync] No meshes for group "${group}"`);
             resolve();
             return;
         }
 
         const url = cacheBust ? `/skin/${filename}?t=${cacheBust}` : `/skin/${filename}`;
 
-        console.log(`[TM LiveSync] Loading ${group}.${slot} ← ${filename}`);
-
         textureLoader.load(url, (texture) => {
-            // Color space: base color and emissive are sRGB, others are linear
-            texture.colorSpace = (slot === 'map' || slot === 'emissiveMap')
-                ? THREE.SRGBColorSpace
-                : THREE.LinearSRGBColorSpace;
+            // CRITICAL: Set color space
+            if (slot === 'map' || slot === 'emissiveMap') {
+                texture.colorSpace = THREE.SRGBColorSpace;
+            } else {
+                texture.colorSpace = THREE.NoColorSpace;
+            }
+
             texture.flipY = false;
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-
-            // Fix blurriness at steep angles and long distances
             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-            texture.generateMipmaps = true;
-            texture.minFilter = THREE.LinearMipmapLinearFilter;
-
+            
             applyTextureToMeshes(texture, targetMeshes, slot);
             resolve();
-        },
-            undefined,
-            (err) => {
-                console.error(`[TM LiveSync] Failed to load: ${url}`, err);
-                resolve(); // don't block other loads
-            });
+        }, undefined, () => resolve());
     }).finally(() => {
         loadingCount--;
         if (loadingCount <= 0) {
@@ -375,48 +332,25 @@ function loadTextureFile(filename, cacheBust = '') {
     });
 }
 
-/**
- * Fetch the list of available textures from the server and load them all.
- */
 async function loadInitialTextures() {
     try {
         const res = await fetch('/api/textures');
         const data = await res.json();
         const files = data.files || [];
-
-        if (files.length === 0) {
-            console.log('[TM LiveSync] No textures found in skins folder');
-            return;
-        }
-
-        console.log(`[TM LiveSync] Loading ${files.length} textures from skins folder…`);
-        loadingScreen.querySelector('p').textContent = `Loading textures… 0/${files.length}`;
-
-        let loaded = 0;
         for (const file of files) {
             await loadTextureFile(file);
-            loaded++;
-            loadingScreen.querySelector('p').textContent = `Loading textures… ${loaded}/${files.length}`;
         }
-
-        console.log(`[TM LiveSync] All ${files.length} textures loaded`);
     } catch (err) {
-        console.error('[TM LiveSync] Failed to fetch texture list:', err);
+        console.error('[TM LiveSync] Initial load failed:', err);
     }
 }
 
-/**
- * Called on WebSocket update — reload a single texture with cache busting.
- */
 function reloadTexture(filename, timestamp) {
     loadTextureFile(filename, timestamp).then(() => {
-        // Update HUD
         updateCount++;
         updateCountEl.textContent = updateCount;
         lastFileEl.textContent = filename;
         lastUpdateEl.textContent = new Date().toLocaleTimeString();
-
-        // Flash effect
         triggerFlash();
     });
 }
@@ -427,47 +361,23 @@ function triggerFlash() {
 }
 
 // ── WebSocket client ──────────────────────────────────────────────
-let ws = null;
-let reconnectTimer = null;
-
 function connectWebSocket() {
     const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${location.host}/ws`;
+    const ws = new WebSocket(wsUrl);
 
-    ws = new WebSocket(wsUrl);
-
-    ws.onopen = () => {
-        console.log('[WS] Connected');
-        setStatus('connected', 'Connected');
-        if (reconnectTimer) {
-            clearInterval(reconnectTimer);
-            reconnectTimer = null;
-        }
-    };
-
+    ws.onopen = () => setStatus('connected', 'Connected');
     ws.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
             if (data.event === 'update_texture') {
                 reloadTexture(data.file, data.timestamp);
             }
-        } catch (e) {
-            console.error('[WS] Bad message:', e);
-        }
+        } catch (e) {}
     };
-
     ws.onclose = () => {
-        console.log('[WS] Disconnected');
         setStatus('disconnected', 'Disconnected');
-        // Auto-reconnect every 2 seconds
-        if (!reconnectTimer) {
-            reconnectTimer = setInterval(connectWebSocket, 2000);
-        }
-    };
-
-    ws.onerror = (err) => {
-        console.error('[WS] Error:', err);
-        ws.close();
+        setTimeout(connectWebSocket, 2000);
     };
 }
 
@@ -478,23 +388,19 @@ function setStatus(state, text) {
 
 connectWebSocket();
 
-// ── Keyboard shortcuts ────────────────────────────────────────────
+// ── UI Listeners ──────────────────────────────────────────────────
+helpBtn.addEventListener('click', () => helpModal.classList.remove('hidden'));
+closeHelpBtn.addEventListener('click', () => helpModal.classList.add('hidden'));
+refreshBtn.addEventListener('click', () => loadInitialTextures());
+
 window.addEventListener('keydown', (e) => {
     if (e.key === 'r' || e.key === 'R') {
-        // Reset camera
         camera.position.set(3, 1.8, 4);
-        controls.target.set(0, 0.6, 0);
+        controls.target.set(0, 0.4, 0);
         controls.update();
-    }
-    if (e.key === 'F5') {
-        // Force-reload all textures without full page refresh
-        e.preventDefault();
-        console.log('[TM LiveSync] Force-reloading all textures…');
-        loadInitialTextures();
     }
 });
 
-// ── Resize handler ────────────────────────────────────────────────
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -502,24 +408,10 @@ window.addEventListener('resize', () => {
     composer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// ── Animation loop ────────────────────────────────────────────────
 function animate() {
     requestAnimationFrame(animate);
     controls.update();
     composer.render();
 }
-
-// ── UI Listeners ──────────────────────────────────────────────────
-helpBtn.addEventListener('click', () => {
-    helpModal.classList.remove('hidden');
-});
-
-closeHelpBtn.addEventListener('click', () => {
-    helpModal.classList.add('hidden');
-});
-
-refreshBtn.addEventListener('click', () => {
-    loadAllTextures();
-});
 
 animate();
