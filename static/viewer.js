@@ -24,6 +24,7 @@ const reloadFlash = document.getElementById('reload-flash');
 const loadingScreen = document.getElementById('loading-screen');
 const updateIndicator = document.getElementById('update-indicator');
 const helpBtn = document.getElementById('help-btn');
+const refreshBtn = document.getElementById('refresh-btn');
 const closeHelpBtn = document.getElementById('close-help-btn');
 const helpModal = document.getElementById('help-modal');
 
@@ -504,6 +505,10 @@ helpBtn.addEventListener('click', () => {
 
 closeHelpBtn.addEventListener('click', () => {
     helpModal.classList.add('hidden');
+});
+
+refreshBtn.addEventListener('click', () => {
+    loadAllTextures();
 });
 
 animate();
