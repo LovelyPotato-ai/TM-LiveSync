@@ -457,10 +457,24 @@ window.addEventListener('resize', () => {
     composer.setSize(window.innerWidth, window.innerHeight);
 });
 
-function animate() {
+// ── Animation loop ────────────────────────────────────────────────
+let lastTime = performance.now();
+const FPS_LIMIT = 90;
+const FRAME_MIN_TIME = 1000 / FPS_LIMIT;
+
+function animate(currentTime) {
     requestAnimationFrame(animate);
+    
+    const delta = currentTime - lastTime;
+    
+    // Skip frame if not enough time has passed
+    if (delta < FRAME_MIN_TIME) return;
+    
+    // Adjust lastTime for frame drift
+    lastTime = currentTime - (delta % FRAME_MIN_TIME);
+    
     controls.update();
     composer.render();
 }
 
-animate();
+animate(performance.now());
