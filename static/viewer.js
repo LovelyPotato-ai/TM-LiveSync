@@ -362,6 +362,46 @@ function reloadTexture(filename, timestamp) {
     });
 }
 
+function removeTexture(filename) {
+    const parsed = parseTextureFile(filename);
+    if (!parsed) return;
+
+    const { group, slot } = parsed;
+    const targetMeshes = meshGroups[group] || [];
+    
+    targetMeshes.forEach((mesh) => {
+        if (!mesh.material) return;
+
+        const oldTexture = mesh.material[slot];
+        if (oldTexture) {
+            oldTexture.dispose();
+        }
+        mesh.material[slot] = null;
+
+        // Reset specific properties when texture is removed
+        if (slot === 'emissiveMap') {
+            mesh.material.emissive.setHex(0x000000);
+            mesh.material.emissiveIntensity = 0;
+        }
+        if (slot === 'roughnessMap') {
+            mesh.material.metalnessMap = null;
+            mesh.material.metalness = 0.0;
+            mesh.material.roughness = 0.5;
+        }
+        if (slot === 'aoMap') {
+            mesh.material.aoMapIntensity = 1.0;
+        }
+
+        mesh.material.needsUpdate = true;
+    });
+
+    updateCount++;
+    updateCountEl.textContent = updateCount;
+    lastFileEl.textContent = `Removed: ${filename}`;
+    lastUpdateEl.textContent = new Date().toLocaleTimeString();
+    triggerFlash();
+}
+
 function triggerFlash() {
     reloadFlash.classList.add('active');
     setTimeout(() => reloadFlash.classList.remove('active'), 150);
@@ -379,6 +419,8 @@ function connectWebSocket() {
             const data = JSON.parse(event.data);
             if (data.event === 'update_texture') {
                 reloadTexture(data.file, data.timestamp);
+            } else if (data.event === 'delete_texture') {
+                removeTexture(data.file);
             }
         } catch (e) {}
     };

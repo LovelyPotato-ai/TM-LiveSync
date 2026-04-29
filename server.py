@@ -162,6 +162,20 @@ class SkinFileHandler(FileSystemEventHandler):
         """Some editors (e.g. GIMP) write to a temp file then rename — treat creates like modifies."""
         self.on_modified(event)
 
+    def on_deleted(self, event):
+        """Handle file deletion by notifying the client to remove the texture."""
+        if event.is_directory:
+            return
+        filename = os.path.basename(event.src_path)
+        if not WATCHED_RE.match(filename):
+            return
+
+        print(f"[WATCH] Detected deletion: {filename}")
+        asyncio.run_coroutine_threadsafe(manager.broadcast({
+            "event": "delete_texture",
+            "file": filename,
+        }), self._loop)
+
 
 # ---------------------------------------------------------------------------
 # App lifespan — start/stop the file watcher
