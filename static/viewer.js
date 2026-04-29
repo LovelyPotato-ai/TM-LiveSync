@@ -191,6 +191,11 @@ gltfLoader.load(
         // Find and group meshes by material name
         model.traverse((child) => {
             if (child.isMesh && child.material) {
+                // Prevent the base model from glowing white without an emissive map
+                if (child.material.emissive) {
+                    child.material.emissive.setHex(0x000000);
+                }
+
                 const matName = child.material.name?.toLowerCase() || '';
                 if (matName.includes('skin')) meshGroups.skin.push(child);
                 if (matName.includes('details')) meshGroups.details.push(child);
