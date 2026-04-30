@@ -52,7 +52,7 @@ WATCHED_RE = re.compile(
     re.IGNORECASE,
 )
 
-DEBOUNCE_SECONDS = 0.5
+DELETE_GRACE_SECONDS = 1.2
 
 # ---------------------------------------------------------------------------
 # WebSocket connection manager
@@ -96,21 +96,31 @@ class SkinFileHandler(FileSystemEventHandler):
     def __init__(self, loop: asyncio.AbstractEventLoop):
         super().__init__()
         self._loop = loop
-        self._last_trigger: dict[str, float] = {}
-        self._pending: dict[str, asyncio.TimerHandle] = {}
+        self._pending_updates: dict[str, asyncio.Future] = {}
+        self._pending_deletes: dict[str, asyncio.Future] = {}
 
-    def _schedule_broadcast(self, filepath: str, filename: str):
-        """Schedule a delayed broadcast, cancelling any pending one for the same file."""
+    def _cancel_pending_delete(self, key: str):
+        pending_delete = self._pending_deletes.pop(key, None)
+        if pending_delete:
+            pending_delete.cancel()
+
+    def _schedule_update(self, filepath: str, filename: str):
+        """Schedule an update after the file settles, cancelling stale events."""
         key = filename.lower()
+        self._cancel_pending_delete(key)
 
-        # Cancel any pending broadcast for this file
-        if key in self._pending:
-            self._pending[key].cancel()
+        # Cancel any pending update for this file; the newest save event wins.
+        pending_update = self._pending_updates.pop(key, None)
+        if pending_update:
+            pending_update.cancel()
 
         # Schedule broadcast after a delay to let the file finish writing
-        async def delayed_broadcast():
+        async def delayed_update():
             # Wait for file to be stable (not being written to)
-            await self._wait_for_stable(filepath)
+            is_stable = await self._wait_for_stable(filepath)
+            if not is_stable:
+                print(f"[WATCH] Skipped unstable/missing file: {filename}")
+                return
 
             now = time.time()
             print(f"[WATCH] Broadcasting: {filename}")
@@ -120,8 +130,44 @@ class SkinFileHandler(FileSystemEventHandler):
                 "timestamp": int(now * 1000),
             })
 
-        handle = asyncio.run_coroutine_threadsafe(delayed_broadcast(), self._loop)
-        self._pending[key] = handle
+        handle = asyncio.run_coroutine_threadsafe(delayed_update(), self._loop)
+        self._pending_updates[key] = handle
+
+    def _schedule_delete(self, filepath: str, filename: str):
+        """Broadcast a delete only if the file is still gone after a short grace period."""
+        key = filename.lower()
+
+        pending_delete = self._pending_deletes.pop(key, None)
+        if pending_delete:
+            pending_delete.cancel()
+
+        async def delayed_delete():
+            await asyncio.sleep(DELETE_GRACE_SECONDS)
+            if os.path.exists(filepath):
+                print(f"[WATCH] Delete became save/replace: {filename}")
+                is_stable = await self._wait_for_stable(filepath)
+                if is_stable:
+                    now = time.time()
+                    print(f"[WATCH] Broadcasting: {filename}")
+                    await manager.broadcast({
+                        "event": "update_texture",
+                        "file": filename,
+                        "timestamp": int(now * 1000),
+                    })
+                return
+
+            pending_update = self._pending_updates.pop(key, None)
+            if pending_update:
+                pending_update.cancel()
+
+            print(f"[WATCH] Broadcasting deletion: {filename}")
+            await manager.broadcast({
+                "event": "delete_texture",
+                "file": filename,
+            })
+
+        handle = asyncio.run_coroutine_threadsafe(delayed_delete(), self._loop)
+        self._pending_deletes[key] = handle
 
     @staticmethod
     async def _wait_for_stable(filepath: str, checks: int = 3, interval: float = 0.3):
@@ -134,13 +180,14 @@ class SkinFileHandler(FileSystemEventHandler):
                 if size == last_size and size > 0:
                     stable_count += 1
                     if stable_count >= checks:
-                        return  # file is stable
+                        return True  # file is stable
                 else:
                     stable_count = 0
                 last_size = size
             except OSError:
                 stable_count = 0
             await asyncio.sleep(interval)
+        return False
 
     def on_modified(self, event):
         if event.is_directory:
@@ -149,14 +196,8 @@ class SkinFileHandler(FileSystemEventHandler):
         if not WATCHED_RE.match(filename):
             return
 
-        now = time.time()
-        last = self._last_trigger.get(filename.lower(), 0)
-        if now - last < DEBOUNCE_SECONDS:
-            return  # debounce — skip rapid duplicate events
-        self._last_trigger[filename.lower()] = now
-
         print(f"[WATCH] Detected change: {event.src_path}")
-        self._schedule_broadcast(event.src_path, filename)
+        self._schedule_update(event.src_path, filename)
 
     def on_created(self, event):
         """Some editors (e.g. GIMP) write to a temp file then rename — treat creates like modifies."""
@@ -171,10 +212,23 @@ class SkinFileHandler(FileSystemEventHandler):
             return
 
         print(f"[WATCH] Detected deletion: {filename}")
-        asyncio.run_coroutine_threadsafe(manager.broadcast({
-            "event": "delete_texture",
-            "file": filename,
-        }), self._loop)
+        self._schedule_delete(event.src_path, filename)
+
+    def on_moved(self, event):
+        """Handle editor atomic-save patterns that move/replace files."""
+        if event.is_directory:
+            return
+
+        src_name = os.path.basename(event.src_path)
+        dest_name = os.path.basename(event.dest_path)
+
+        if WATCHED_RE.match(src_name):
+            print(f"[WATCH] Detected move away: {src_name}")
+            self._schedule_delete(event.src_path, src_name)
+
+        if WATCHED_RE.match(dest_name):
+            print(f"[WATCH] Detected move/create: {event.dest_path}")
+            self._schedule_update(event.dest_path, dest_name)
 
 
 # ---------------------------------------------------------------------------
